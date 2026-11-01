@@ -164,3 +164,5 @@ You can play the whole game with the keyboard: the controls are native buttons a
 - The brief says the horse list "should contain between 1 to 20 horses", and also that "the game should have a total of 20 horses". I took the first one to describe the numbering in the example ("Horse List (1–20)"), so the game always generates 20. The count is a single constant (`HORSE_COUNT`), though, and `createHorses` accepts any count up to the size of the name and colour pools.
 - In the program, the position column is the starting lane. In the results, it's the finishing position, followed by the race time.
 - There's a short break between rounds (1.5 s at 1×) so you can read each result before the next one starts.
+
+# horse-racing-game
