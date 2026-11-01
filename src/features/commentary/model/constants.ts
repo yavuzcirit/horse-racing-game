@@ -1,0 +1,9 @@
+export const LEAD_CALL_MIN_PROGRESS = 0.12
+
+export const LEAD_CALL_INTERVAL = 0.12
+
+export const FINAL_STRETCH_PROGRESS = 0.75
+
+export const PHOTO_FINISH_MARGIN_MS = 250
+
+export const MAX_COMMENTARY_ENTRIES = 50
