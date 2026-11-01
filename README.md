@@ -1,54 +1,51 @@
 # Horse Racing
 
-An interactive horse racing game built with **Vue 3**, **TypeScript** and **Pinia**.
-
-Twenty horses, a six-round program, ten runners per round and a live commentator.
+A horse racing game built with Vue 3, TypeScript and Pinia. There are twenty horses in the stable, six rounds in a program, ten runners in each round, and a commentator who calls the race as it happens.
 
 ![Game screen in the middle of the first round](e2e/visual/__snapshots__/visual-desktop/mid-race.png)
 
 ## Getting started
 
-Requirements: Node.js 24 (see `.nvmrc`; 22.18+ also works) and npm.
+You'll need Node.js 24 (it's pinned in `.nvmrc`, but 22.18+ works too) and npm.
 
 ```bash
 npm ci
 npm run dev
 ```
 
-Open http://localhost:5173. Add `?seed=42` (any unsigned 32-bit integer) to replay exactly the same horses, programs and races.
+Then open http://localhost:5173. To get the same horses, programs and races every time, add `?seed=42` to the URL. Any unsigned 32-bit integer works.
 
 ### Scripts
 
-| Script                       | What it does                                                         |
-| ---------------------------- | -------------------------------------------------------------------- |
-| `npm run dev`                | Vite dev server with hot reload                                      |
-| `npm run build`              | Type-check and build for production into `dist/`                     |
-| `npm run preview`            | Serve the production build on port 4173                              |
-| `npm run type-check`         | `vue-tsc` over app, tests and configs, plus `tsc` over the E2E suite |
-| `npm run lint`               | oxlint, then ESLint, with zero warnings allowed                      |
-| `npm run lint:fix`           | Same, applying automatic fixes                                       |
-| `npm run format`             | Prettier                                                             |
-| `npm run test:unit`          | Vitest in watch mode                                                 |
-| `npm run test:coverage`      | Vitest once, with coverage thresholds enforced                       |
-| `npm run test:e2e`           | Playwright end-to-end tests against the production build             |
-| `npm run test:visual:docker` | Visual regression tests inside the official Playwright Linux image   |
+| Script                       | What it does                                                       |
+| ---------------------------- | ------------------------------------------------------------------ |
+| `npm run dev`                | Vite dev server with hot reload                                    |
+| `npm run build`              | Type-checks, then builds for production into `dist/`               |
+| `npm run preview`            | Serves the production build on port 4173                           |
+| `npm run type-check`         | `vue-tsc` over the app, tests and configs, plus `tsc` over the E2E |
+| `npm run lint`               | oxlint, then ESLint, with zero warnings allowed                    |
+| `npm run lint:fix`           | The same, applying automatic fixes                                 |
+| `npm run format`             | Prettier                                                           |
+| `npm run test:unit`          | Vitest in watch mode                                               |
+| `npm run test:coverage`      | Vitest once, failing if coverage drops below the thresholds        |
+| `npm run test:e2e`           | Playwright end-to-end tests against the production build           |
+| `npm run test:visual:docker` | Visual regression tests inside the official Playwright Linux image |
 
-A pre-commit hook (husky + lint-staged) lints and formats the staged files.
+There's also a pre-commit hook (husky + lint-staged) that lints and formats whatever you've staged.
 
 ## How it plays
 
-1. The stable of 20 horses is generated on load. Each horse has a unique name, a unique colour and a condition score from 1 to 100.
-2. **Generate Program** draws six rounds: 1200, 1400, 1600, 1800, 2000 and 2200 m. Each round has 10 horses picked at random from the 20.
-3. **Start** runs the rounds one at a time. The horses gallop down their lanes, and each round's result appears under **Results** as soon as the last horse crosses the line.
-4. **Pause** / **Resume** freezes and continues the race. The speed switch plays it at 1×, 2× or 4×.
-5. The commentator calls the start, the early leader, lead changes, the final stretch, photo finishes and the winner.
-6. **New horses** brings in a fresh stable when you want a different field.
+When the page loads, it generates a stable of 20 horses. Each one gets a unique name, a unique colour and a condition score between 1 and 100.
 
-Progress is saved locally, so reloading the page puts you back where you were, paused.
+**Generate Program** draws six rounds at 1200, 1400, 1600, 1800, 2000 and 2200 m, with 10 of the 20 horses picked at random for each. Press **Start** and the rounds run one after another. The horses gallop down their lanes, and as soon as the last one crosses the line, the result shows up under **Results**. You can **Pause** and **Resume** at any point, and the speed switch runs the race at 1×, 2× or 4×.
+
+Meanwhile the commentator calls the start, the early leader, any lead changes, the final stretch, photo finishes and the winner. If you want a different field, **New horses** brings in a fresh stable.
+
+Your progress is saved in the browser, so reloading the page puts you back where you were, paused.
 
 ## Architecture
 
-The code is organised by feature rather than by file type. Each feature owns its model, its store and its UI, and exposes a small public API through its `index.ts`:
+The code is organised by feature rather than by file type. Each feature owns its model, its store and its UI, and only exposes what the others need through its `index.ts`.
 
 ```
 src/
@@ -66,27 +63,26 @@ src/
   App.vue         Composition root that lays the features out
 ```
 
-**Dependency direction.** `horses` ← `race` ← `commentary` ← `game`. Each arrow points from a feature to the one that uses it, and nothing points back. ESLint enforces the public API: one feature may not reach into another's internals (`@/features/race/store/...`); it has to go through `@/features/race`.
+Features only depend on each other in one direction: `horses` ← `race` ← `commentary` ← `game`, where each arrow points from a feature to the one that uses it. Nothing points back. ESLint enforces the public APIs, so importing `@/features/race/store/...` from another feature is a lint error. You have to go through `@/features/race`.
 
-**Model / store / UI.**
+Inside a feature, the code is split into three layers:
 
-- `model/` is plain TypeScript with no Vue and no timers: types, constants and pure functions such as `createSchedule`, `planRace`, `progressAt` and `detectEvents`. Most of the logic lives here, and it is the easiest part to test.
-- `store/` holds Pinia setup stores that keep state and expose intent-revealing actions.
-- `ui/` holds components:
-  - Presentational ones (`RaceLane`, `RoundTable`, `DataTable`, ...) take props.
-  - A few containers (`RaceTrack`, `ProgramPanel`, `HorseList`, ...) read their own feature's store.
-  - Anything that crosses features is passed in by `App.vue`.
+- `model/` is plain TypeScript with no Vue and no timers. It holds the types, constants and pure functions like `createSchedule`, `planRace`, `progressAt` and `detectEvents`. Most of the logic lives here, which also makes it the easiest part to test.
+- `store/` has the Pinia setup stores, which hold the state and expose actions named after what they do.
+- `ui/` has the components. Most of them are presentational and only take props (`RaceLane`, `RoundTable`, `DataTable` and so on). A few containers, like `RaceTrack`, `ProgramPanel` and `HorseList`, read their own feature's store. Anything that crosses features is passed in from `App.vue`.
 
 ### State management
 
-| Store        | Responsibility                                                                                      |
-| ------------ | --------------------------------------------------------------------------------------------------- |
-| `horses`     | The 20 horses. Immutable once generated, so held in a `shallowRef` and replaced wholesale.          |
-| `race`       | The program, race plans, results and the race state machine.                                        |
-| `commentary` | The commentary feed, capped at 50 lines.                                                            |
-| `game`       | Orchestrates one session: owns the seeds, generates programs, advances time, builds save snapshots. |
+There are four stores:
 
-The race store is an explicit state machine:
+| Store        | What it does                                                                                           |
+| ------------ | ------------------------------------------------------------------------------------------------------ |
+| `horses`     | The 20 horses. They never change once generated, so they sit in a `shallowRef` and are replaced whole. |
+| `race`       | The program, the race plans, the results and the race state machine.                                   |
+| `commentary` | The commentary feed, capped at 50 lines.                                                               |
+| `game`       | Runs a session: owns the seeds, generates programs, moves time forward and builds save snapshots.      |
+
+The race store is a small state machine:
 
 ```
 idle ──generate──▶ ready ──start──▶ running ⇄ paused
@@ -94,102 +90,77 @@ idle ──generate──▶ ready ──start──▶ running ⇄ paused
                                       └─ six rounds done ─▶ finished ──generate──▶ ready
 ```
 
-Invalid transitions are no-ops, so a double click can never start two loops or skip a round.
+A transition that isn't allowed from the current state is simply ignored, so a double click can't start two loops or skip a round.
 
-`tick(deltaMs)` is the only way time moves forward:
-
-- `useAnimationLoop` calls it once per `requestAnimationFrame`.
-- The frame delta is clamped to 100 ms, so returning to a background tab does not teleport the horses to the finish.
-- Tests call `tick` directly with whatever time they need.
+Time only moves forward through `tick(deltaMs)`. In the app, `useAnimationLoop` calls it once per `requestAnimationFrame`, with the frame delta capped at 100 ms so that switching back to a background tab doesn't teleport the horses to the finish. The tests call `tick` directly with however much time they need.
 
 ### Race simulation
 
-When a program is generated, every round is planned up front:
+Every round is planned up front, when the program is generated. Each horse gets a cruising speed of `15 + 3 × condition / 100` m/s, a form-on-the-day factor moves that up or down by up to 3%, and the distance is split into 200 m segments that each vary by up to 8%.
 
-- Each horse gets a cruising speed of `15 + 3 × condition / 100` m/s.
-- A form-on-the-day factor adds ±3%.
-- The distance is split into 200 m segments, each with ±8% variation.
+That gives believable times (about 70 s for 1200 m) and some lead changes along the way. A 20-point gap in condition is worth roughly 3.5% of speed, so the better horse usually wins, but upsets happen. The unit tests check both of these statistically.
 
-This yields realistic times, about 70 s for 1200 m, and lead changes during a race. A 20-point condition gap is worth roughly 3.5% of speed, so better horses usually win but upsets happen. The unit tests check both properties statistically.
+Since the whole race is known in advance, a horse's position is a pure function of the race clock: `progressAt(run, distance, elapsedMs)`. Pausing, resuming, changing speed and restoring a saved session all come down to setting one number.
 
-Because the whole race is known in advance, a horse's position is a pure function of the race clock (`progressAt(run, distance, elapsedMs)`). Pausing, resuming, changing speed and restoring a saved session all reduce to setting a number.
-
-Every random decision goes through a seeded generator (mulberry32):
-
-- The horses come from the session seed.
-- The n-th program comes from `deriveSeed(seed, n)`.
-
-That makes any session reproducible from `?seed=`, which the E2E and visual tests rely on.
+All the randomness goes through a seeded generator (mulberry32). The horses come from the session seed, and the n-th program comes from `deriveSeed(seed, n)`. That means any session can be replayed from `?seed=`, which is what the E2E and visual tests rely on.
 
 ### Commentary
 
-`detectEvents(previous, next, plans, memory)` compares two consecutive moments of the race and returns typed events: round start, early lead, lead change, final stretch, photo finish, winner and program complete.
+`detectEvents(previous, next, plans, memory)` compares two consecutive moments of a race and returns typed events: round start, early lead, lead change, final stretch, photo finish, winner and program complete. Lead calls are throttled so the feed stays readable.
 
-- Lead calls are throttled, so the feed stays readable.
-- Wording lives in `formatEvent`, which keeps the events free of copy and ready for translation.
-- The feed is an `aria-live="polite"` region, so screen reader users hear the race too.
+The wording lives separately in `formatEvent`. The events themselves don't carry any copy, so translating them later would be straightforward. The feed is an `aria-live="polite"` region, which means screen reader users hear the race too.
 
 ### Persistence
 
-A saved session is just `{ version, seed, programCount, race progress }`. Horses, rounds and race plans are rebuilt from the seeds on load.
+A saved session is only `{ version, seed, programCount, race progress }`. The horses, rounds and race plans are rebuilt from the seeds on load, so the payload is a few hundred bytes and there's nothing in it worth tampering with.
 
-- The payload is a few hundred bytes and holds nothing worth tampering with.
-- Stored data is treated as untrusted. It is size-limited, JSON-parsed in a `try`, and checked by type guards and then against the regenerated program.
-- Anything that does not fit is discarded.
-- Running races come back paused.
-- `SNAPSHOT_VERSION` must be bumped whenever generation or the race model changes.
+Stored data is still treated as untrusted. It's size-limited, parsed inside a `try`, checked with type guards and then checked again against the regenerated program. Anything that doesn't fit gets thrown away. A race that was running when you left comes back paused.
+
+If you change how things are generated or how the race model works, bump `SNAPSHOT_VERSION` so that old saves are discarded instead of restored.
 
 ## Testing
 
-| Layer             | Tooling                       | Scope                                                                                                         |
-| ----------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| Unit & component  | Vitest, Vue Test Utils        | Models, stores, composables, components (236 tests; coverage ≈ 99% statements, enforced thresholds per layer) |
-| End-to-end        | Playwright (Chromium)         | Full game flows, pause/resume, reload & restore, keyboard-only play, CSP and third-party request checks       |
-| Visual regression | Playwright `toHaveScreenshot` | Initial, program, mid-race and finished screens at desktop and mobile sizes                                   |
+| Layer             | Tooling                       | What it covers                                                                                             |
+| ----------------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Unit & component  | Vitest, Vue Test Utils        | Models, stores, composables and components (236 tests, about 99% statement coverage, thresholds per layer) |
+| End-to-end        | Playwright (Chromium)         | Full game flows, pause/resume, reload & restore, keyboard-only play, CSP and third-party request checks    |
+| Visual regression | Playwright `toHaveScreenshot` | The initial, program, mid-race and finished screens at desktop and mobile sizes                            |
 
-**E2E and visual tests.**
+The E2E and visual tests run against the production build (`vite preview`), so the Content Security Policy is enforced while they run. They use a fixed seed and Playwright's fake clock. Nothing moves until a test advances time, so every race and every screenshot comes out the same from run to run.
 
-- They run against the production build (`vite preview`), so the Content Security Policy is enforced while they run.
-- They use a fixed seed and Playwright's fake clock. Nothing moves until a test advances time, so every race and screenshot is identical between runs.
+The visual baselines are rendered on Linux in `mcr.microsoft.com/playwright:v1.64.1-noble`, the same image CI uses, so they don't depend on whatever OS you happen to be on. Run them with `npm run test:visual:docker`. After an intentional UI change, refresh them with `npm run test:visual:docker -- --update-snapshots`.
 
-**Visual baselines.**
-
-- They are rendered on Linux in `mcr.microsoft.com/playwright:v1.64.1-noble`, the same image CI uses, so they don't depend on the OS of whoever runs them.
-- Run them with `npm run test:visual:docker`.
-- After an intended UI change, refresh them with `npm run test:visual:docker -- --update-snapshots`.
-
-CI (`.github/workflows/ci.yml`) runs lint, format check, type check, unit tests with coverage, build and a production dependency audit, then the E2E and visual suites.
+CI (`.github/workflows/ci.yml`) runs lint, the format check, the type check, unit tests with coverage, the build and a production dependency audit, and then the E2E and visual suites.
 
 ## Security
 
-- **No HTML injection surface.** There is no `v-html` (an ESLint error), no `eval`, and no dynamic `<script>`. Everything is rendered through Vue's escaped interpolation.
-- **Strict CSP.** Production builds carry a CSP `<meta>` tag allowing only `'self'`, with no `unsafe-inline` and no `unsafe-eval`. Dynamic styles go through CSSOM (`:style` bindings), which the policy allows. The dev server is exempt because Vite injects inline styles for hot reload.
-- **Validated input.** `?seed=` accepts only digits within the uint32 range; anything else is ignored. Saved sessions are validated as described above.
-- **No third-party requests.** The app makes none: system font stack, inline SVG, no CDNs. An E2E test asserts this.
-- **Production image.** The `Dockerfile` builds the app and serves it from `nginx-unprivileged` as a non-root user. `deploy/nginx` adds the security headers:
-  - CSP including `frame-ancestors 'none'`
-  - `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, COOP and CORP
-  - Immutable caching for hashed assets and `no-cache` for `index.html`
+There's no HTML injection surface: no `v-html` (it's an ESLint error), no `eval` and no dynamically created `<script>`. Everything is rendered through Vue's escaped interpolation.
 
-  HSTS belongs on whatever terminates TLS in front of it.
+Production builds include a CSP `<meta>` tag that only allows `'self'`, with no `unsafe-inline` and no `unsafe-eval`. Dynamic styles are applied through CSSOM (`:style` bindings), which the policy allows. The dev server is left out, because Vite injects inline styles for hot reload.
 
-- **Dependencies.** Runtime dependencies are limited to `vue` and `pinia`, and `npm audit --omit=dev` is part of CI.
+`?seed=` only accepts digits within the uint32 range and ignores anything else. Saved sessions are validated as described above.
+
+The app makes no third-party requests at all. It uses the system font stack and inline SVG, and nothing comes from a CDN. An E2E test checks this.
+
+The `Dockerfile` builds the app and serves it from `nginx-unprivileged` as a non-root user:
 
 ```bash
 docker build -t horse-racing-game .
 docker run --rm -p 8080:8080 horse-racing-game
 ```
 
+The nginx config in `deploy/nginx` adds the security headers: a CSP that includes `frame-ancestors 'none'`, plus `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, COOP and CORP. Hashed assets are cached as immutable and `index.html` is served with `no-cache`. HSTS isn't set here, since it belongs on whatever terminates TLS in front of the container.
+
+The only runtime dependencies are `vue` and `pinia`, and CI runs `npm audit --omit=dev`.
+
 ## Accessibility
 
-- The page uses semantic landmarks and a single `h1`. Tables have captions, column headers and row headers.
-- Colours are always paired with their names, so no information relies on colour alone.
-- Everything is reachable by keyboard: native buttons, plus a radio group for speed.
-- Focus is clearly visible.
-- `prefers-reduced-motion` turns off the gallop and scrolling animations.
+The page uses semantic landmarks and a single `h1`, and the tables have captions, column headers and row headers. Colours are always shown next to their names, so nothing depends on colour alone.
+
+You can play the whole game with the keyboard: the controls are native buttons and the speed switch is a radio group. Focus is clearly visible. With `prefers-reduced-motion` on, the gallop and scrolling animations are turned off.
 
 ## Assumptions
 
-- The brief says the horse list "should contain between 1 to 20 horses" and also that "the game should have a total of 20 horses". I read the first as the numbering shown in the example ("Horse List (1–20)"), so the game always generates 20. The count is a single constant (`HORSE_COUNT`), and `createHorses` accepts any count up to the size of the name and colour pools.
-- In the program, the position column is the starting lane. In the results, it is the finishing position, followed by the race time.
-- A short break (1.5 s at 1×) separates rounds so each result can be read before the next start.
+- The brief says the horse list "should contain between 1 to 20 horses", and also that "the game should have a total of 20 horses". I took the first one to describe the numbering in the example ("Horse List (1–20)"), so the game always generates 20. The count is a single constant (`HORSE_COUNT`), though, and `createHorses` accepts any count up to the size of the name and colour pools.
+- In the program, the position column is the starting lane. In the results, it's the finishing position, followed by the race time.
+- There's a short break between rounds (1.5 s at 1×) so you can read each result before the next one starts.
